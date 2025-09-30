@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Scan Actions — WhatsApp & Pay</title>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<style>
+  :root{--bg:#f4f6f8;--card:#fff}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);display:flex;align-items:center;justify-content:center;height:100vh;padding:18px}
+  .card{width:100%;max-width:520px;background:var(--card);border-radius:14px;padding:20px;box-shadow:0 8px 28px rgba(10,10,20,0.06)}
+  h1{margin:0 0 6px;font-size:20px}
+  p.small{color:#556;margin:6px 0 16px;font-size:14px}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .bigbtn{padding:14px;border-radius:10px;border:0;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+  .wh{background:#25D366;color:#fff}
+  .pay{background:#0b6efd;color:#fff}
+  .hint{font-size:13px;color:#666;margin-top:12px}
+  .smalllink{font-size:13px;color:#0073e6;text-decoration:none}
+  .qrwrap{display:flex;flex-direction:column;align-items:center;margin-top:14px;gap:8px}
+  img.qr{width:160px;height:160px;border-radius:8px;background:#fff;padding:8px}
+</style>
+</head>
+<body>
+  <div class="card" role="main">
+    <h1>Scan karne ke liye dhanyavaad</h1>
+    <p class="small">Neeche 2 options: <strong>WhatsApp</strong> (owner ka number open hoga) aur <strong>Pay</strong> (user ke phone pe jo UPI app installed hain, vo open karega).</p>
+
+    <div class="actions">
+      <button id="btnWhats" class="bigbtn wh" aria-label="Open WhatsApp">
+        <!-- WhatsApp icon (SVG) -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M..." fill="white"/></svg>
+        Chat on WhatsApp
+      </button>
+
+      <button id="btnPay" class="bigbtn pay" aria-label="Open Payment">
+        <!-- Pay icon -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M..." fill="white"/></svg>
+        Pay (PhonePe / Paytm / GPay...)
+      </button>
+    </div>
+
+    <p class="hint">Tip: WhatsApp open karega with your number prefilled. Payment button UPI deep link use karta hai — installed UPI apps (PhonePe/Paytm/GPay) user ke device pe show honge.</p>
+
+    <!-- Optional: Show a UPI QR as fallback for manual scan -->
+    <div class="qrwrap" id="qrFallback" style="display:none">
+      <div class="small">Agar auto-open kaam na kare, manual scan karein:</div>
+      <img id="upiQr" class="qr" alt="UPI QR fallback"/>
+    </div>
+
+    <p style="margin-top:12px;font-size:12px;color:#666">
+      Note: Replace placeholders in the page source with your WhatsApp number and UPI (VPA). Auto-redirects may be blocked by some browsers — user tap is required.
+    </p>
+  </div>
+
+<script>
+/* ========== REPLACE THESE VALUES ========== */
+/* WhatsApp number: full international format WITHOUT plus sign.
+   Example for India: 91xxxxxxxxxx  */
+const OWNER_WA_NUMBER = "919876543210";         // <--- replace with your WhatsApp number (country code + number, no +)
+const WA_PREFILLED_MESSAGE = "Hi, I scanned your QR. Please assist."; // message user will see in chat
+
+/* UPI settings */
+const PAYEE_VPA = "7836990516@ptsbi";           // <--- replace with your VPA (example)
+const PAYEE_NAME = "Ayan Khan";                 // <--- replace with your display name
+const DEFAULT_AMOUNT = "";                      // leave empty for user to enter amount, or put "50.00" etc
+const TRANSACTION_NOTE = "Payment";             // note shown in UPI apps
+/* ========================================== */
+
+function openWhatsApp(){
+  // wa.me link with prefilled text
+  const msg = encodeURIComponent(WA_PREFILLED_MESSAGE);
+  const waUrl = `https://wa.me/${OWNER_WA_NUMBER}?text=${msg}`;
+  // Navigate on user click
+  window.location.href = waUrl;
+}
+
+function openUPI(){
+  // Construct UPI URI
+  const params = {
+    pa: PAYEE_VPA,
+    pn: PAYEE_NAME,
+    // only include am param if DEFAULT_AMOUNT is set (some apps want amount omitted so user enters)
+    ...(DEFAULT_AMOUNT ? {am: DEFAULT_AMOUNT} : {}),
+    tn: TRANSACTION_NOTE,
+    cu: "INR"
+  };
+  const q = Object.entries(params).map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const upiUri = `upi://pay?${q}`;
+
+  // Try to open UPI deep link
+  // On Android, this will show chooser between UPI apps (PhonePe/Paytm/GPay) or directly open the installed one.
+  window.location.href = upiUri;
+
+  // Fallback: show UPI QR for manual scan if app didn't open after 1.4s
+  setTimeout(()=> {
+    showUpiQrFallback();
+  }, 1400);
+}
+
+function showUpiQrFallback(){
+  // Generate a simple UPI QR image using free API (this is just an example; you can generate QR image offline too)
+  // We create standard UPI QR payload (EMV-like simple format) or you can use the UPI URI to generate a QR.
+  const upiPayload = `upi://pay?pa=${encodeURIComponent(PAYEE_VPA)}&pn=${encodeURIComponent(PAYEE_NAME)}${DEFAULT_AMOUNT ? '&am='+encodeURIComponent(DEFAULT_AMOUNT):''}&tn=${encodeURIComponent(TRANSACTION_NOTE)}&cu=INR`;
+  // Use qrserver API to generate PNG (works fine). If you prefer offline, generate QR with any QR tool.
+  const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiPayload)}`;
+  const img = document.getElementById('upiQr');
+  img.src = qrApi;
+  document.getElementById('qrFallback').style.display = 'flex';
+}
+
+/* Attach handlers */
+document.getElementById('btnWhats').addEventListener('click', () => {
+  openWhatsApp();
+});
+document.getElementById('btnPay').addEventListener('click', () => {
+  openUPI();
+});
+
+/* Optional: show both popups on page load as modals (not used here because browsers often block) */
+/* If you want to auto-focus user to press one of them, you could flash a small overlay or animate buttons. */
+
+</script>
+</body>
+</html>
